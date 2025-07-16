@@ -1,55 +1,67 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <dirent.h>
 #include <sys/stat.h>
-#include <stdbool.h>
+#include <string.h>
 
-bool is_hidden (const char *name) {
-  return (name[0] == '.');
+#define MAX_ENTRIES 1024
+
+// Struct to store entries
+typedef struct {
+    char name[256];
+} Entry;
+
+int is_hidden(const char *name) {
+    return name[0] == '.';
 }
 
-int main () {
-  DIR *dir;
-  struct dirent *entry;
-  struct stat fileStat;
-  char path[1024];
+int main() {
+    DIR *d;
+    struct dirent *dir;
+    struct stat st;
+    Entry folders[MAX_ENTRIES];
+    Entry files[MAX_ENTRIES];
+    int folder_count = 0, file_count = 0;
 
-  // Replace "your_directory_path" with the actual path
-  const char *dir_path = ".";
+    d = opendir(".");
+    if (!d) {
+        perror("opendir");
+        return 1;
+    }
 
-  dir = opendir (dir_path);
+    while ((dir = readdir(d)) != NULL) {
+        if (is_hidden(dir->d_name))
+            continue;
 
-  if (dir == NULL) {
-    perror ("Error opening directory");
-    return 1;
-  }
+        if (stat(dir->d_name, &st) == -1) {
+            perror("stat");
+            continue;
+        }
 
-  while ((entry = readdir (dir)) != NULL) {
-    // Skip "." and ".."
-    if (  strcmp (entry->d_name, ".") == 0 ||
-          strcmp (entry->d_name, "..") == 0) {
-	    continue;
-	  }
+        if (S_ISDIR(st.st_mode)) {
+            if (folder_count < MAX_ENTRIES) {
+                strncpy(folders[folder_count].name, dir->d_name, sizeof(folders[folder_count].name)-1);
+                folders[folder_count].name[sizeof(folders[folder_count].name)-1] = '\0';
+                folder_count++;
+            }
+        } else {
+            if (file_count < MAX_ENTRIES) {
+                strncpy(files[file_count].name, dir->d_name, sizeof(files[file_count].name)-1);
+                files[file_count].name[sizeof(files[file_count].name)-1] = '\0';
+                file_count++;
+            }
+        }
+    }
 
-    // Check if the entry is hidden
-    if (is_hidden (entry->d_name)) {
-	    continue;
-	  }
+    closedir(d);
 
-    // Construct the full path to the file/directory
-    snprintf (path, sizeof (path), "%s/%s", dir_path, entry->d_name);
+    for (int i = 0; i < folder_count; i++) {
+        printf("<%s>\n", folders[i].name);
+    }
 
-    // Get file attributes to check if it's a directory
-    if (stat (path, &fileStat) == 0) {
-	    if (S_ISDIR (fileStat.st_mode)) {
-	      printf ("<%s>\n", entry->d_name);
-	    } else {
-	      printf ("%s\n", entry->d_name);
-	    }
-	  } else {
-	    perror ("Error getting file stats");
-	  }
-  }
+    for (int i = 0; i < file_count; i++) {
+        printf("%s\n", files[i].name);
+    }
 
-  closedir (dir);
-  return 0;
+    return 0;
 }
